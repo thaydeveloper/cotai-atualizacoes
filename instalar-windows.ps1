@@ -4,7 +4,7 @@
 #
 # Baixado pelo PowerShell, o Windows nao marca o CotAI como "baixado da internet": o SmartScreen
 # nao bloqueia o "Iniciar CotAI". (Sem acentos neste arquivo: o PowerShell antigo le errado.)
-# Para testar: COTAI_ZIP (zip local), COTAI_PASTA, COTAI_CODIGO, COTAI_NAO_ABRIR=1, COTAI_SEM_ATALHO=1.
+# Para testar: COTAI_ZIP (zip local), COTAI_PASTA, COTAI_CODIGO, COTAI_CHAVE_IA, COTAI_NAO_ABRIR=1, COTAI_SEM_ATALHO=1.
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -59,6 +59,21 @@ if ($codigo) {
   $texto = [IO.File]::ReadAllText($arquivoEnv)
   if ($texto -match '(?m)^LICENCA=') { $texto = $texto -replace '(?m)^LICENCA=.*$', "LICENCA=$codigo" }
   else { $texto += "`r`n# Codigo de cliente do CotAI (controle de uso)`r`nLICENCA=$codigo`r`n" }
+  [IO.File]::WriteAllText($arquivoEnv, $texto, $semBom)
+}
+
+# Chave da IA (Anthropic) do proprio cliente: com ela, toda lista passa pela revisao da IA antes da planilha
+if ($null -ne $env:COTAI_CHAVE_IA) { $chave = $env:COTAI_CHAVE_IA }
+else {
+  $segura = Read-Host 'Chave da IA da Anthropic (comeca com sk-ant-; Enter para pular)' -AsSecureString
+  $chave = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura))
+}
+$chave = "$chave" -replace '[^A-Za-z0-9_-]', ''
+if ($chave) {
+  $semBom = New-Object System.Text.UTF8Encoding $false
+  $texto = [IO.File]::ReadAllText($arquivoEnv)
+  $texto = $texto -replace '(?m)^ANTHROPIC_API_KEY=.*$', "ANTHROPIC_API_KEY=$chave"
+  $texto = $texto -replace '(?m)^IA_LEITURA=.*$', 'IA_LEITURA=sim'
   [IO.File]::WriteAllText($arquivoEnv, $texto, $semBom)
 }
 
