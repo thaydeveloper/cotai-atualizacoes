@@ -18,11 +18,13 @@ abrir() {
 }
 
 echo
-echo "Instalando o CotAI em $PASTA ..."
+ja_instalado=""
 if [ -f "$PASTA/src/main.py" ]; then
-  echo "O CotAI já está instalado aqui (e se atualiza sozinho). Abrindo..."
-  abrir
-  exit 0
+  ja_instalado=1
+  echo "O CotAI já está instalado em $PASTA: atualizando e consertando os arquivos do programa."
+  echo "O .env (código e chave), as planilhas e a conexão do WhatsApp ficam como estão."
+else
+  echo "Instalando o CotAI em $PASTA ..."
 fi
 
 temporaria=$(mktemp -d)
@@ -34,19 +36,24 @@ else
 fi
 ditto -x -k "$temporaria/CotAI.zip" "$temporaria/extraido"
 [ -f "$temporaria/extraido/CotAI/src/main.py" ] || { echo "O pacote do CotAI veio incompleto. Tente de novo."; exit 1; }
-mkdir -p "$(dirname "$PASTA")"
-mv "$temporaria/extraido/CotAI" "$PASTA"
+if [ -n "$ja_instalado" ]; then
+  # Só os arquivos do programa: o pacote não traz .env, planilhas, histórico nem a sessão do WhatsApp
+  ditto "$temporaria/extraido/CotAI" "$PASTA"
+else
+  mkdir -p "$(dirname "$PASTA")"
+  mv "$temporaria/extraido/CotAI" "$PASTA"
+fi
 xattr -dr com.apple.quarantine "$PASTA" 2>/dev/null || true
 chmod +x "$PASTA/iniciar.sh" "$INICIAR"
 
 # Código de cliente (controle de uso): perguntado aqui, gravado no .env
 codigo="${COTAI_CODIGO-}"
-if [ -z "${COTAI_CODIGO+definido}" ] && [ -r /dev/tty ]; then
+if [ -z "${COTAI_CODIGO+definido}" ] && [ -z "$ja_instalado" ] && [ -r /dev/tty ]; then
   printf "Código de cliente do CotAI (ex.: COTAI-ABCD-2345; Enter se ainda não tiver): " > /dev/tty
   read -r codigo < /dev/tty || codigo=""
 fi
 codigo=$(printf '%s' "$codigo" | tr '[:lower:]' '[:upper:]' | tr -cd 'A-Z0-9-')
-cp "$PASTA/.env.example" "$PASTA/.env"
+[ -f "$PASTA/.env" ] || cp "$PASTA/.env.example" "$PASTA/.env"
 if [ -n "$codigo" ]; then
   if grep -q '^LICENCA=' "$PASTA/.env"; then
     sed -i '' "s/^LICENCA=.*/LICENCA=$codigo/" "$PASTA/.env"
@@ -57,7 +64,7 @@ fi
 
 # Chave da IA (Anthropic) do próprio cliente: com ela, toda lista passa pela revisão da IA antes da planilha
 chave="${COTAI_CHAVE_IA-}"
-if [ -z "${COTAI_CHAVE_IA+definido}" ] && [ -r /dev/tty ]; then
+if [ -z "${COTAI_CHAVE_IA+definido}" ] && [ -z "$ja_instalado" ] && [ -r /dev/tty ]; then
   printf "Chave da IA da Anthropic (começa com sk-ant-; Enter para pular): " > /dev/tty
   read -rs chave < /dev/tty || chave=""
   printf '\n' > /dev/tty
