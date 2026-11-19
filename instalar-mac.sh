@@ -5,7 +5,7 @@
 #
 # Baixado pelo Terminal, o macOS não marca o CotAI como "baixado da internet": o "Iniciar CotAI"
 # abre com dois cliques, sem o aviso de "desenvolvedor não identificado".
-# Para testar: COTAI_ZIP (zip local), COTAI_PASTA, COTAI_CODIGO, COTAI_NAO_ABRIR=1, COTAI_SEM_ATALHO=1.
+# Para testar: COTAI_ZIP (zip local), COTAI_PASTA, COTAI_CODIGO, COTAI_CHAVE_IA, COTAI_NAO_ABRIR=1, COTAI_SEM_ATALHO=1.
 set -e
 
 ENDERECO="https://github.com/thaydeveloper/cotai-atualizacoes/releases/latest/download"
@@ -53,6 +53,18 @@ if [ -n "$codigo" ]; then
   else
     printf '\n# Código de cliente do CotAI (controle de uso)\nLICENCA=%s\n' "$codigo" >> "$PASTA/.env"
   fi
+fi
+
+# Chave da IA (Anthropic) do próprio cliente: com ela, toda lista passa pela revisão da IA antes da planilha
+chave="${COTAI_CHAVE_IA-}"
+if [ -z "${COTAI_CHAVE_IA+definido}" ] && [ -r /dev/tty ]; then
+  printf "Chave da IA da Anthropic (começa com sk-ant-; Enter para pular): " > /dev/tty
+  read -rs chave < /dev/tty || chave=""
+  printf '\n' > /dev/tty
+fi
+chave=$(printf '%s' "$chave" | tr -cd 'A-Za-z0-9_-')
+if [ -n "$chave" ]; then
+  sed -i '' "s/^ANTHROPIC_API_KEY=.*/ANTHROPIC_API_KEY=$chave/; s/^IA_LEITURA=.*/IA_LEITURA=sim/" "$PASTA/.env"
 fi
 
 # Atalho na Mesa
