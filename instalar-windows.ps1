@@ -20,11 +20,12 @@ function Abrir-CotAI {
 }
 
 Write-Host ''
-Write-Host "Instalando o CotAI em $pasta ..."
-if (Test-Path (Join-Path $pasta 'src\main.py')) {
-  Write-Host 'O CotAI ja esta instalado aqui (e se atualiza sozinho). Abrindo...'
-  Abrir-CotAI
-  return
+$jaInstalado = Test-Path (Join-Path $pasta 'src\main.py')
+if ($jaInstalado) {
+  Write-Host "O CotAI ja esta instalado em $pasta : atualizando e consertando os arquivos do programa."
+  Write-Host 'O .env (codigo e chave), as planilhas e a conexao do WhatsApp ficam como estao.'
+} else {
+  Write-Host "Instalando o CotAI em $pasta ..."
 }
 
 $temporaria = Join-Path ([IO.Path]::GetTempPath()) ('cotai-' + [guid]::NewGuid())
@@ -39,9 +40,14 @@ try {
   }
   Expand-Archive -Path $arquivo -DestinationPath $temporaria -Force
   if (-not (Test-Path (Join-Path $temporaria 'CotAI\src\main.py'))) { throw 'o pacote do CotAI veio incompleto; tente de novo' }
-  $mae = Split-Path $pasta -Parent
-  if ($mae) { New-Item -ItemType Directory -Force -Path $mae | Out-Null }
-  Move-Item (Join-Path $temporaria 'CotAI') $pasta
+  if ($jaInstalado) {
+    # So os arquivos do programa: o pacote nao traz .env, planilhas, historico nem a sessao do WhatsApp
+    Copy-Item (Join-Path $temporaria 'CotAI\*') $pasta -Recurse -Force
+  } else {
+    $mae = Split-Path $pasta -Parent
+    if ($mae) { New-Item -ItemType Directory -Force -Path $mae | Out-Null }
+    Move-Item (Join-Path $temporaria 'CotAI') $pasta
+  }
 } finally {
   Remove-Item $temporaria -Recurse -Force -ErrorAction SilentlyContinue
 }
@@ -50,10 +56,11 @@ Get-ChildItem $pasta -Recurse -File | Unblock-File
 
 # Codigo de cliente (controle de uso): perguntado aqui, gravado no .env
 if ($null -ne $env:COTAI_CODIGO) { $codigo = $env:COTAI_CODIGO }
+elseif ($jaInstalado) { $codigo = '' }  # consertando: o codigo que ja estava no .env fica
 else { $codigo = Read-Host 'Codigo de cliente do CotAI (ex.: COTAI-ABCD-2345; Enter se ainda nao tiver)' }
 $codigo = "$codigo".ToUpper() -replace '[^A-Z0-9-]', ''
 $arquivoEnv = Join-Path $pasta '.env'
-Copy-Item (Join-Path $pasta '.env.example') $arquivoEnv
+if (-not (Test-Path $arquivoEnv)) { Copy-Item (Join-Path $pasta '.env.example') $arquivoEnv }
 if ($codigo) {
   $semBom = New-Object System.Text.UTF8Encoding $false
   $texto = [IO.File]::ReadAllText($arquivoEnv)
@@ -64,6 +71,7 @@ if ($codigo) {
 
 # Chave da IA (Anthropic) do proprio cliente: com ela, toda lista passa pela revisao da IA antes da planilha
 if ($null -ne $env:COTAI_CHAVE_IA) { $chave = $env:COTAI_CHAVE_IA }
+elseif ($jaInstalado) { $chave = '' }  # consertando: a chave que ja estava no .env fica
 else {
   $segura = Read-Host 'Chave da IA da Anthropic (comeca com sk-ant-; Enter para pular)' -AsSecureString
   $chave = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura))
